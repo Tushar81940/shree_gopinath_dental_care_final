@@ -109,55 +109,57 @@ function updateActiveNavLink() {
     });
 }
 
-// Testimonials carousel
+// Reviews slider
 function initializeTestimonials() {
-    // Auto-rotate testimonials
-    setInterval(rotateTestimonials, 5000);
+    const track = document.querySelector('.reviews-track');
+    const dotsContainer = document.querySelector('.slider-dots');
+    const prevBtn = document.querySelector('.slider-prev');
+    const nextBtn = document.querySelector('.slider-next');
+    if (!track) return;
 
-    // Manual navigation with dots
-    navDots.forEach((dot, index) => {
-        dot.addEventListener('click', () => {
-            currentTestimonialIndex = index;
-            updateTestimonial();
-            updateNavDots();
-        });
+    const cards = Array.from(track.querySelectorAll('.review-card'));
+    const total = cards.length;
+    let current = 0;
+    let autoSlide;
+
+    // Build dots
+    cards.forEach((_, i) => {
+        const dot = document.createElement('button');
+        dot.setAttribute('aria-label', `Review ${i + 1}`);
+        if (i === 0) dot.classList.add('active');
+        dot.addEventListener('click', () => goTo(i));
+        dotsContainer.appendChild(dot);
     });
 
-    // Initial update
-    updateTestimonial();
-    updateNavDots();
-}
+    const dots = () => Array.from(dotsContainer.querySelectorAll('button'));
 
-function rotateTestimonials() {
-    currentTestimonialIndex = (currentTestimonialIndex + 1) % testimonials.length;
-    updateTestimonial();
-    updateNavDots();
-}
-
-function updateTestimonial() {
-    const testimonial = testimonials[currentTestimonialIndex];
-    
-    if (testimonialText && testimonialAuthor) {
-        testimonialText.textContent = `"${testimonial.text}"`;
-        
-        testimonialAuthor.innerHTML = `
-            <div class="author-info">
-                <div class="author-name">${testimonial.name}</div>
-                <div class="author-location">${testimonial.location}</div>
-                <div class="author-treatment">${testimonial.treatment}</div>
-            </div>
-        `;
+    function goTo(index) {
+        current = (index + total) % total;
+        track.style.transform = `translateX(-${current * 100}%)`;
+        dots().forEach((d, i) => d.classList.toggle('active', i === current));
     }
-}
 
-function updateNavDots() {
-    navDots.forEach((dot, index) => {
-        if (index === currentTestimonialIndex) {
-            dot.classList.add('active');
-        } else {
-            dot.classList.remove('active');
-        }
+    function startAuto() {
+        autoSlide = setInterval(() => goTo(current + 1), 5000);
+    }
+
+    function resetAuto() {
+        clearInterval(autoSlide);
+        startAuto();
+    }
+
+    if (prevBtn) prevBtn.addEventListener('click', () => { goTo(current - 1); resetAuto(); });
+    if (nextBtn) nextBtn.addEventListener('click', () => { goTo(current + 1); resetAuto(); });
+
+    // Touch/swipe support
+    let touchStartX = 0;
+    track.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    track.addEventListener('touchend', e => {
+        const diff = touchStartX - e.changedTouches[0].clientX;
+        if (Math.abs(diff) > 50) { goTo(diff > 0 ? current + 1 : current - 1); resetAuto(); }
     });
+
+    startAuto();
 }
 
 // Form handling
@@ -384,17 +386,12 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Keyboard navigation for testimonials
+// Keyboard navigation for review slider
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'ArrowLeft') {
-        currentTestimonialIndex = (currentTestimonialIndex - 1 + testimonials.length) % testimonials.length;
-        updateTestimonial();
-        updateNavDots();
-    } else if (e.key === 'ArrowRight') {
-        currentTestimonialIndex = (currentTestimonialIndex + 1) % testimonials.length;
-        updateTestimonial();
-        updateNavDots();
-    }
+    const prevBtn = document.querySelector('.slider-prev');
+    const nextBtn = document.querySelector('.slider-next');
+    if (e.key === 'ArrowLeft' && prevBtn) prevBtn.click();
+    else if (e.key === 'ArrowRight' && nextBtn) nextBtn.click();
 });
 
 // Form validation
