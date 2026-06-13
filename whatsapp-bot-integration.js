@@ -1813,27 +1813,21 @@ class AIChatBot {
     }
 
     formatMessage(message) {
-        // Enhanced message formatting
         let formatted = message
-            // Convert URLs to clickable links
-            .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color: var(--primary-color); text-decoration: underline;">$1</a>')
-            // Convert phone numbers to clickable links
-            .replace(/(\+?[\d\s\-\(\)]{10,})/g, '<a href="tel:$1" style="color: var(--primary-color); text-decoration: underline;">$1</a>')
-            // Convert email addresses to clickable links
-            .replace(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g, '<a href="mailto:$1" style="color: var(--primary-color); text-decoration: underline;">$1</a>')
-            // Convert line breaks
-            .replace(/\n/g, '<br>')
-            // Bold text **text**
+            // 1. Markdown links [text](url) — must run FIRST before URL/phone regexes
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:var(--primary-color);text-decoration:underline;">$1</a>')
+            // 2. Bold **text**
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            // Italic text *text*
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            // Code blocks `code`
-            .replace(/`(.*?)`/g, '<code style="background: var(--bg-secondary); padding: 2px 4px; border-radius: 4px; font-family: monospace;">$1</code>');
+            // 3. Italic *text* (skip if already inside a tag)
+            .replace(/\*([^*<>]+)\*/g, '<em>$1</em>')
+            // 4. Bare URLs not already inside an href
+            .replace(/(?<!href=["'])(?<!">)(https?:\/\/[^\s<"']+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:var(--primary-color);text-decoration:underline;">$1</a>')
+            // 5. Line breaks
+            .replace(/\n/g, '<br>');
 
-        // If message contains multiple paragraphs, wrap in proper structure
+        // Wrap paragraphs
         if (formatted.includes('<br><br>')) {
-            const paragraphs = formatted.split('<br><br>');
-            formatted = paragraphs.map(p => `<p>${p.replace(/<br>/g, ' ')}</p>`).join('');
+            formatted = formatted.split('<br><br>').map(p => `<p>${p}</p>`).join('');
         } else {
             formatted = `<p>${formatted}</p>`;
         }
@@ -1842,62 +1836,104 @@ class AIChatBot {
     }
 
     async sendToWebhook(message, type = 'chat') {
-        try {
-            const webhookData = {
-                message: message,
-                conversationId: this.conversationId,
-                timestamp: new Date().toISOString(),
-                source: 'website_chat',
-                type: type,
-                messageHistory: this.messageHistory.slice(-5), // Send last 5 messages for context
-                userAgent: navigator.userAgent,
-                sessionData: {
-                    url: window.location.href,
-                    referrer: document.referrer,
-                    userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    userLanguage: navigator.language,
-                    screenResolution: `${screen.width}x${screen.height}`,
-                    chatTheme: this.currentTheme,
-                    soundEnabled: this.soundEnabled
-                },
-                metadata: {
-                    messageCount: this.messageHistory.length,
-                    sessionDuration: Date.now() - this.lastSeen,
-                    isFirstMessage: this.messageHistory.length === 1
-                }
-            };
+        // Local AI — no external server needed
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({ output: this.getLocalReply(message) });
+            }, 900 + Math.random() * 600);
+        });
+    }
 
-            console.log('Sending webhook data:', webhookData);
+    getLocalReply(message) {
+        const msg = message.toLowerCase().trim();
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-            const response = await fetch(this.webhookUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(webhookData),
-                signal: controller.signal
-            });
-
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            console.log('Webhook response received:', data);
-            return data;
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                throw new Error('Request timed out. Please try again.');
-            }
-            console.error('Webhook error:', error);
-            throw error;
+        // Appointment / booking
+        if (/book|appoint|schedul|visit|consult|meet|slot/i.test(msg)) {
+            return "📅 **To book an appointment**, you can:\n\n1. 📞 Call us: **+91 7579165045**\n2. 💬 [WhatsApp Us](https://wa.me/917579165045?text=Hi,%20I%20would%20like%20to%20book%20an%20appointment)\n3. 📋 Fill the **Book Appointment** form on this page\n\n**Clinic Hours:**\n🕙 Morning: 10:00 AM – 2:00 PM\n🕔 Evening: 5:00 PM – 8:00 PM\n📅 Mon–Sat | Sunday: 9:30 AM – 12:30 PM";
         }
+
+        // Timing / hours
+        if (/hour|time|timing|open|close|when|schedule|sunday|monday|weekend/i.test(msg)) {
+            return "⏰ **Clinic Hours:**\n\n🕙 Morning: 10:00 AM – 2:00 PM\n🕔 Evening: 5:00 PM – 8:00 PM\n\n📅 **Monday to Saturday**\n☀️ **Sunday:** 9:30 AM – 12:30 PM\n\nFor emergencies outside hours, call **+91 7579165045**.";
+        }
+
+        // Location / address / directions
+        if (/locat|address|where|direction|find|map|reach|near|indra nagar|dehradun/i.test(msg)) {
+            return "📍 **Clinic Address:**\n\nShop No. 219, Indra Nagar Colony\nNear Asian School, Dehradun\n\n🗺️ [Get Directions](https://maps.google.com/?q=Shree+Gopinath+Dental+Care+Dehradun)\n\n📞 Call for exact directions: **+91 7579165045**";
+        }
+
+        // Contact / phone
+        if (/contact|phone|call|number|whatsapp|reach|tel/i.test(msg)) {
+            return "📞 **Contact Us:**\n\n📱 Phone / WhatsApp: **+91 7579165045**\n\n💬 [WhatsApp Us](https://wa.me/917579165045)\n\nWe typically respond within a few minutes during clinic hours.";
+        }
+
+        // Doctor / about Dr Sudha
+        if (/doctor|dr\.?|sudha|dentist|who|about|experience|qualif|certif|uk/i.test(msg)) {
+            return "👩‍⚕️ **Dr. Sudha Singh**\n\n✅ UK Certified Implantologist\n✅ Government Hospital Trained\n✅ 15+ Years of Clinical Experience\n✅ Expert in Painless Dental Treatments\n\nDr. Sudha specializes in Dental Implants, Root Canal Treatments, Smile Designing, and Orthodontics. She is known for her gentle, patient-first approach.";
+        }
+
+        // Implants
+        if (/implant/i.test(msg)) {
+            return "🦷 **Dental Implants** at Shree Gopinath Dental Care:\n\nDr. Sudha Singh is a **UK Certified Implantologist** with extensive experience in dental implants.\n\n✅ Titanium implants\n✅ Natural look & feel\n✅ Permanent solution\n✅ High success rate\n\nBook a consultation to know if implants are right for you!\n📞 **+91 7579165045**";
+        }
+
+        // Root canal
+        if (/root canal|rct|nerve|pulp/i.test(msg)) {
+            return "🦷 **Root Canal Treatment (RCT):**\n\n✅ Completely painless procedure\n✅ Single sitting available\n✅ Save your natural tooth\n✅ High success rate\n\nMany patients fear RCT, but Dr. Sudha's gentle technique ensures a comfortable experience. 📞 Call **+91 7579165045** to book.";
+        }
+
+        // Smile design / cosmetic
+        if (/smile|cosmetic|aesthetic|whitening|veneer|crown|cap/i.test(msg)) {
+            return "😁 **Smile Designing & Cosmetic Dentistry:**\n\n✅ Digital smile planning\n✅ Teeth whitening\n✅ Veneers & crowns\n✅ Natural-looking results\n✅ Confidence boost!\n\nDr. Sudha customizes every smile to suit your face and personality. Book a consultation: 📞 **+91 7579165045**";
+        }
+
+        // Braces / orthodontics
+        if (/brace|orthodont|align|wire|teeth straighten/i.test(msg)) {
+            return "😬 **Orthodontic Treatment:**\n\n✅ Metal braces\n✅ Ceramic braces\n✅ Comfortable fit\n✅ Faster results\n\nWe offer modern orthodontic solutions for all ages. Contact us to check eligibility: 📞 **+91 7579165045**";
+        }
+
+        // Extraction
+        if (/extract|remov|pull|tooth out/i.test(msg)) {
+            return "🦷 **Painless Tooth Extraction:**\n\n✅ Local anesthesia for zero pain\n✅ Gentle technique\n✅ Quick recovery\n✅ Experienced hands\n\nDon't fear extraction — Dr. Sudha's painless technique makes it easy. 📞 **+91 7579165045**";
+        }
+
+        // Gum / scaling / cleaning
+        if (/gum|scaling|clean|tartar|plaque|bleeding|periodon/i.test(msg)) {
+            return "🦷 **Gum Treatment & Dental Cleaning:**\n\n✅ Deep scaling & cleaning\n✅ Gum therapy\n✅ Preventive care\n✅ Treats bleeding gums\n\nRegular cleanings prevent major issues. Book yours today: 📞 **+91 7579165045**";
+        }
+
+        // Dentures
+        if (/denture|false teeth|removable/i.test(msg)) {
+            return "🦷 **Complete & Partial Dentures:**\n\n✅ Perfect fit\n✅ Natural look\n✅ Improved chewing & speech\n✅ Comfortable to wear\n\nBook a consultation to discuss the best option for you: 📞 **+91 7579165045**";
+        }
+
+        // Services list
+        if (/service|treat|offer|provide|what do you|procedure/i.test(msg)) {
+            return "🦷 **Our Dental Services:**\n\n• 📸 Orthopantomograph (X-ray)\n• 🔧 Painless Extraction\n• 💊 Root Canal Treatment\n• 🔩 Dental Implants\n• 😁 Smile Designing\n• 😬 Orthodontic Brackets\n• 🦷 Complete Dentures\n• 🩺 Gum Treatment\n• 🧹 Teeth Scaling & Cleaning\n\nFor details or pricing, call 📞 **+91 7579165045**";
+        }
+
+        // Pricing / cost / fees
+        if (/price|cost|fee|charge|expensive|cheap|afford|insurance|how much/i.test(msg)) {
+            return "💰 **Pricing:**\n\nTreatment costs vary depending on the procedure and complexity. Dr. Sudha believes in transparent, fair pricing.\n\n📞 Call **+91 7579165045** or visit the clinic for a **free consultation** and personalized quote.\n\nWe offer quality dental care at affordable prices!";
+        }
+
+        // Emergency
+        if (/emergency|urgent|pain|ache|swell|broke|crack|hurt|help/i.test(msg)) {
+            return "🚨 **Dental Emergency?**\n\nPlease contact us immediately:\n\n📞 **+91 7579165045**\n💬 [WhatsApp Now](https://wa.me/917579165045?text=Dental+emergency+%E2%80%94+need+urgent+help)\n\nFor severe pain or swelling, please don't wait — call right away.";
+        }
+
+        // Greeting
+        if (/^(hi|hello|hey|good morning|good afternoon|good evening|namaste|hii|helo)/i.test(msg)) {
+            return "👋 Hello! Welcome to **Shree Gopinath Dental Care**.\n\nHow can I help you today? You can ask me about:\n• 🗓️ Booking an appointment\n• 🦷 Our treatments & services\n• ⏰ Clinic timings\n• 📍 Location & directions\n• 💰 Pricing\n\nJust type your question!";
+        }
+
+        // Thanks
+        if (/thank|thanks|thx|great|awesome|perfect|helpful/i.test(msg)) {
+            return "😊 You're welcome! Is there anything else I can help you with?\n\nFeel free to book an appointment anytime:\n📞 **+91 7579165045**\n💬 [WhatsApp Us](https://wa.me/917579165045)";
+        }
+
+        // Fallback
+        return "🤔 I'm not sure I understood that. Here's what I can help with:\n\n• 🗓️ **Booking appointments**\n• 🦷 **Treatment information**\n• ⏰ **Clinic hours**\n• 📍 **Location & directions**\n• 💰 **Pricing**\n\nOr reach us directly:\n📞 **+91 7579165045**\n💬 [WhatsApp](https://wa.me/917579165045)";
     }
 
     showTypingIndicator() {
@@ -1940,38 +1976,12 @@ class AIChatBot {
     }
 
     async sendToWebhook(message) {
-        try {
-            const webhookData = {
-                message: message,
-                conversationId: this.conversationId,
-                timestamp: new Date().toISOString(),
-                source: 'website_chat',
-                userAgent: navigator.userAgent,
-                sessionData: {
-                    url: window.location.href,
-                    referrer: document.referrer
-                }
-            };
-
-            const response = await fetch(this.webhookUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(webhookData)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Webhook request failed: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('Webhook response received:', data);
-            return data;
-        } catch (error) {
-            console.error('Webhook error:', error);
-            throw error;
-        }
+        // Handled by the method above — this duplicate is intentionally removed
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({ output: this.getLocalReply(message) });
+            }, 900 + Math.random() * 600);
+        });
     }
 
     // Method to trigger bot from external functions

@@ -1484,9 +1484,11 @@ body {
 
 .certificate-item img {
     width: 100%;
-    height: 300px;
-    object-fit: cover;
+    height: 320px;
+    object-fit: contain;
+    object-position: center;
     display: block;
+    background: #fff;
 }
 
 .certificate-overlay {
@@ -2002,6 +2004,8 @@ link[rel="icon"] {
     .certificate-item img,
     .equipment-item img {
         height: 250px;
+        object-fit: contain;
+        background: #fff;
     }
     
     /* Services gallery */
