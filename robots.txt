@@ -1,13 +1,13 @@
 User-agent: *
 Allow: /
 
-# Block unnecessary files from crawling
+# Block dev/utility files
 Disallow: /create_favicon.py
 Disallow: /responsive-test.html
 Disallow: /favicon_setup.md
 Disallow: /RESPONSIVE-FEATURES.md
 
-# Allow all assets
+# Explicitly allow all important assets
 Allow: /logo.jpeg
 Allow: /*.css
 Allow: /*.js
@@ -16,6 +16,13 @@ Allow: /*.jpeg
 Allow: /*.jpg
 Allow: /*.ico
 Allow: /*.webmanifest
+Allow: /Certificates/
+Allow: /Doctor image/
+Allow: /Equipments/
+Allow: /Services/
 
 # Sitemap
 Sitemap: https://www.shreegopinathdentalcare.com/sitemap.xml
+
+# Crawl delay (optional — helps with server load)
+Crawl-delay: 1
